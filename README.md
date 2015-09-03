@@ -1,0 +1,2 @@
+# wadexing.com
+my blog
