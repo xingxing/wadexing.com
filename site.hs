@@ -2,20 +2,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Monoid (mappend)
 import           Hakyll
-import 		     Text.Pandoc
+import           Text.Pandoc
 
 
 --------------------------------------------------------------------------------
 main :: IO ()
-main = hakyll $ do
+main = hakyllWith config $ do
     match "static/*/*" $ do
-	route idRoute
-	compile copyFileCompiler
+                  route idRoute
+                  compile copyFileCompiler
 
     match (fromList ["about.md", "contact.markdown"]) $ do
         route   $ setExtension "html"
         compile $ pandocCompiler
-	    >>= loadAndApplyTemplate "templates/page.html" siteCtx
+            >>= loadAndApplyTemplate "templates/page.html" siteCtx
             >>= loadAndApplyTemplate "templates/default.html" siteCtx
             >>= relativizeUrls
 
@@ -59,6 +59,7 @@ main = hakyll $ do
 
 
 --------------------------------------------------------------------------------
+
 postCtx :: Context String
 postCtx =
     dateField "date" "%B %e, %Y" `mappend`
@@ -67,9 +68,18 @@ postCtx =
 siteCtx :: Context String
 siteCtx = 
     constField "baseurl" "http://localhost:8000" `mappend` 
-    constField "site_description" "my beautiful blog" `mappend`
+    constField "site_description" "胡扯必须端正态度.." `mappend`
     constField "instagram_username" "katychuang.nyc" `mappend`
     constField "twitter_username" "katychuang" `mappend`
-    constField "github_username" "katychuang" `mappend`
+    constField "github_username" "xingxing" `mappend`
     constField "google_username" "katychuang" `mappend`
     defaultContext
+
+--------------------------------------------------------------------------------
+
+config :: Configuration
+config = defaultConfiguration
+    { deployCommand = "rsync --checksum -ave 'ssh -p 2222' \
+                      \_site/* \
+                      \jaspervdj@jaspervdj.be:jaspervdj.be/hakyll/"
+    }
