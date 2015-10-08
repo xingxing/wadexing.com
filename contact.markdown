@@ -3,5 +3,8 @@ title: Contact
 headerImg: beach.jpg
 ---
 
-I live in a small hut in the mountains of Kumano Kodō on Kii Hantō and would not
-like to be contacted.
+Haidian District, Beijing, China
+
+Email: iamxingxing(AT)gmail(DOT)com 
+
+Wechat: wade2177

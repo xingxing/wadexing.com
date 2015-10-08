@@ -67,19 +67,17 @@ postCtx =
 
 siteCtx :: Context String
 siteCtx = 
-    constField "baseurl" "http://localhost:8000" `mappend` 
-    constField "site_description" "胡扯必须端正态度.." `mappend`
-    constField "instagram_username" "katychuang.nyc" `mappend`
-    constField "twitter_username" "katychuang" `mappend`
+    constField "baseurl" "http://www.wadexing.com" `mappend` 
+    constField "site_description" "安识紫霞客，瑶台鸣素琴" `mappend`
+    constField "twitter_username" "wadexing" `mappend`
     constField "github_username" "xingxing" `mappend`
-    constField "google_username" "katychuang" `mappend`
     defaultContext
 
 --------------------------------------------------------------------------------
 
 config :: Configuration
 config = defaultConfiguration
-    { deployCommand = "rsync --checksum -ave 'ssh -p 2222' \
+    { deployCommand = "rsync --checksum -ave 'ssh -p 65022' \
                       \_site/* \
-                      \jaspervdj@jaspervdj.be:jaspervdj.be/hakyll/"
+                      \xing@wadexing.com:/home/xing/blog"
     }
