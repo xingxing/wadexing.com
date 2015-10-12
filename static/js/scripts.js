@@ -12,3 +12,11 @@
     })
   }(window.jQuery)
  
+// 百度跟踪代码
+var _hmt = _hmt || [];
+(function() {
+    var hm = document.createElement("script");
+    hm.src = "//hm.baidu.com/hm.js?1a258b1e8242a05a93f7ae081269b234";
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(hm, s);
+})();
