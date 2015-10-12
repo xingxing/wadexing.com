@@ -266,32 +266,33 @@ main = do
 {-# LANGUAGE TemplateHaskell #-}
 module PrintF where
 
--- NB: printf needs to be in a separate module to the one where
--- you intend to use it.
 
--- Import some Template Haskell syntax
+-- 注意： printf 需要被拼接到指定的独立模块中使用
+
+-- 导入Template Haskell 语法
 import Language.Haskell.TH
 
--- Possible string tokens: %d %s and literal strings
+
+-- 可能出现的字符串标记： %d %s 和字符串字面量
 data Format = D | S | L String
      deriving Show
 
--- a poor man's tokenizer
+-- 一个简陋的分词器
 tokenize :: String -> [Format]
 tokenize [] = []
 tokenize ('%':c:rest) | c == 'd' = D : tokenize rest
                       | c == 's' = S : tokenize rest
-tokenize (s:str) = L (s:p) : tokenize rest -- so we don't get stuck on weird '%'
+tokenize (s:str) = L (s:p) : tokenize rest -- 莫要留恋古怪的 '%'
      where (p,rest) = span (/= '%') str
 
--- generate argument list for the function
+-- 为函数生成参数列表
 args :: [Format] -> [PatQ]
 args fmt = concatMap (\(f,n) -> case f of
                                     L _ -> []
                                     _   -> [varP n]) $ zip fmt names
           where names = [ mkName $ 'x' : show i | i <- [0..] ]
 
--- generate body of the function
+-- 为函数生成方法体
 body :: [Format] -> ExpQ
 body fmt = foldr (\ e e' -> infixApp e [| (++) |] e') (last exps) (init exps)
      where exps = [ case f of
@@ -301,9 +302,8 @@ body fmt = foldr (\ e e' -> infixApp e [| (++) |] e') (last exps) (init exps)
                     | (f,n) <- zip fmt names ]
      names = [ mkName $ 'x' : show i | i <- [0..] ]
 
--- glue the argument list and body together into a lambda
--- this is what gets spliced into the haskell code at the call
--- site of "printf"
+-- 在lambda表达式中将参数列表和方法体粘合起来
+-- 从而在调用时得到拼接后的Haskell代码
 printf :: String -> Q Exp
 printf format = lamE (args fmt) (body fmt)
     where fmt = tokenize format
@@ -403,13 +403,3 @@ $ ghc --make Main.hs -o main
 $ ./main
 [A 1 "s",B 2,C]
 ````
-
-### 总结
-
-This guide was for the most part written from collecting information written in other guides on Template Haskell, quasi-quoting, and Lisp macros – from online, wiki, and academic sources. Please check my bibliography to see where what came from what so credit can be properly given where it’s due.
-
-Meta-programming is a powerful programming technique that can allow for the generation of user generated syntax extensions and DSLs. This is useful in that it can allow a programmer to generate custom code generating syntax extensions without otherwise having to change the core language. Template Haskell in particular is especially powerful over similar programming language constructs (i.e. The C Preprocessor, Lisp’s Macro system) in that it makes use of ASTs, reification (through a specific function), and – much in the spirit of Haskell – type-safety. The examples presented above only scratch the surface of what’s possible with reification – imagine the ability to construction entire systems, and then use reify to build ASTs, then swap in and out entire modules, entirely with the use of Template Haskell.
-
-Some questions that have arisen within me from writing this article are: What are the limits of TH’s data type system? Is it truly possible for TH to represent all of Haskell with the finite set of data types written into the module? Is it possible for future language features to defy this set? What are the limits of meta-programming – TH, macros, and similar meta-prorgramming constructs make it possible to write code that writes code – but are there limits to this – is it possible to write a macro that can generate a macro, and so on indefinitely?
-
-Don’t forget to checkout the API. Everything you need to know, you can for the most part find in the source. Also TH does in fact have bugs, check the issue tracking page if you’re dealing with a known issue: see here.
