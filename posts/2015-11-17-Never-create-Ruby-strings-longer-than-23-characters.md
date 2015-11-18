@@ -27,7 +27,7 @@ title: 千万别构建超过23个字符的Ruby字符串
 
 ## 不是所有字符串创建都是一样的
 
-节前(译注：根据原文的发布时间推测是2011的圣诞)我决定通读一下[Ruby Hacking Guide](http://rhg.rubyforge.org/)。要是你还没听过这篇文章的话，它是一篇对Ruby解释器内部工作进行阐述的佳作。不幸的时这实际是日语写就的，但是一部分章节已经被翻译成为英语了。比如(第二章)[http://rhg.rubyforge.org/chapter02.html]，从这一章开始阐述了所有基本Ruby数据类型，包括字符串。
+节前(译注：根据原文的发布时间推测是2011的圣诞)我决定通读一下[Ruby Hacking Guide](http://rhg.rubyforge.org/)。要是你还没听过这篇文章的话，它是一篇对Ruby解释器内部工作进行阐述的佳作。不幸的时这实际是日语写就的，但是一部分章节已经被翻译成为英语了。比如[第二章](http://rhg.rubyforge.org/chapter02.html)，从这一章开始阐述了所有基本Ruby数据类型，包括字符串。
 
 通读之后，我决定潜入MRI 1.9.3 C 源码中，更深入地学习Ruby是如何操纵字符串的。由于我使用RVM，对我而言Ruby源代码在~/.rvm/src/ruby-1.9.3-preview1目录下。我从include/ruby/ruby.h文件开始了源码漫游，这个头文件中定义了额所有的Ruby基本数据类型，对于Ruby字符串对象的实现在string.c中。
 
