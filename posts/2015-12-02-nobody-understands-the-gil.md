@@ -11,7 +11,7 @@ title: 无人知晓的GIL
 
 最初听人提及GIL时，我不知道它是如何工作的，它做了什么事，甚至也不知道它为什么会存在。我只知道这是个蠢主意，因为它限制了并行，换句话说就是"曾经辉煌"，因为它让我的代码线程安全。后来，我总算学会了如何去爱多线程，也意识到了现实远比我设想的复杂。
 
-我要知其然，更知其知其所以然，GIL到底是怎么工作的？但是，GIL没有规程(specification)[1]可循，亦没有文档可看。本质上说它就是一个未知行为；一个MRI的实现细节。Ruby核心组没有对它将如何工作予以承诺或担保。
+我要知其然，更知其知其所以然，GIL到底是怎么工作的？但是，GIL没有规程(specification)可循，亦没有文档可看。本质上说它就是一个未知行为；一个MRI的实现细节。Ruby核心组没有对它将如何工作予以承诺或担保。
 
 也许我有点儿超前了。
 
@@ -254,17 +254,120 @@ end
 
 ![](http://cdn.shopify.com/s/files/1/0110/8792/files/thread_start_func_2_grande.png?686)
 
-这有很多样板代码，不值得一看。
+这里有很多样板代码，不值得一看。我标出了值得我们关注的部分。在接近顶部的地方，新线程获取GIL。注意，这个线程会保持空闲，直到它确实获得了GIL。在函数中部，它调用你穿给**Thread.new**的那个代码块。包装事物后，它释放乐GIL并退出原生线程。
+
+在我们的片段中，这个新线程衍生于主线程。有鉴于此，我们可以假设主线程当前正持有GIL。新线程将必须等待，直到主线程释放GIL，它才能继续。
+
+让我们看一下当新线程尝试获取GIL时发生了什么吧。
+
+```c
+static void
+gvl_acquire_common(rb_vm_t *vm)
+{
+  if (vm->gvl.acquired) {
+    vm->gvl.waiting++;
+    if (vm->gvl.waiting == 1) {
+      rb_thread_wakeup_timer_thread_low();
+    }
+
+    while (vm->gvl.acquired) {
+      native_cond_wait(&vm->gvl.cond, &vm->gvl.lock);
+    }
+```
+
+这段代码来自[gvl_acquire_common](https://github.com/ruby/ruby/blob/trunk/thread_pthread.c#L68)函数。此函数在我们的新线程尝试获取GIL时被调用。
+
+首先，它会检查GIL当前是否被占有了，之后它增加GIL的**waiting**属性。同我们的片段，这个值应该现在为1。紧接着的一行检查看**wating**是否是1。它正是1，于是下一行触发唤醒了个计时器线程。
+
+计时器线程是MRI中线程系统能一路高歌的秘密武器，并避免任意线程独霸GIL。但在我们跳得太远之前，先让我们阐述一个GIL相关事物的状态，然后再来介绍计时器线程。
 
 
+我前面说了几次，MRI线程依靠的是原生的操作系统线程。这是真的，但是如图中所示，每个MRI线程并行运行在各自的原生线程中。GIL阻止这样。我们需要画出GIL来让其更为接近事实。
+
+![](http://cdn.shopify.com/s/files/1/0110/8792/files/pre-gil_2_medium.png?692)
+
+当一个Ruby线程希望在它自己的原生线程中执行代码时，必须先获得GIL。**GIL在Ruby线程和它们各自的原生进程之间周旋，极力消减并发！** 上张图里，Ruby线程在其原生线程里可以并行执行。而第二张更接近MRI事实真相的图里，在特定时间点上只有一个线程可以获取GIL，于是代码的执行是完全不能并行的。
+
+![](http://cdn.shopify.com/s/files/1/0110/8792/files/with-gil_medium.png?694)
 
 
+对MRI核心组而言，**GIL保卫着系统的内部状态**。使用GIL，他们不需要在数据结构周围使用任何锁或者同步机制。如果两个线程不能够同时改变内部状态，也就不会有竞争条件发生了。
+
+对你，开发者而言，这会大大限制你从MRI Ruby代码中获得的并发能力。
+
+![](http://www.flickr.com/photos/kellyskustompinstriping/6844608535/)
+
+### 计时器线程
+
+我前面提到计时器线程是用来避免一个线程独霸GIL的。计时器线程只是一个存在于MRI内部的原生线程；它没有相应的Ruby线程。计时器线程在MRI启动时以[rb_thread_create_timer_thread](https://github.com/ruby/ruby/blob/trunk/thread_pthread.c#L1399)函数启动。
+
+当MRI启动并只有主线程运行时，计时器线程沉睡。但请记住，一旦有一个线程在等待GIL,它即会唤醒计时器线程。
+
+![](http://cdn.shopify.com/s/files/1/0110/8792/files/sleeping-timer_large.png?696)
+
+这张图更近乎于MRI中GIL的实现。回想之前的片段，我刚刚衍生出最右边的线程。因为它是唯一在等待GIL的，就是它唤醒计时器线程的。
+
+计时器线程是用来避免一个线程独霸GIL的。每100毫秒，计时器线程在当前持有GIL的线程上设置一个中断标志，使用 **RUBY_VM_SET_TIMER_INTERRUPT** 宏。这里的细节需要注意，因为这会给**array << nil** 是否是原子性操作这个问题提供线索。
+
+如果你熟悉[时间片](https://en.wikipedia.org/wiki/Preemption_(computing)#Time_slice)的概念，与此很相似。
+
+每100毫秒计时器线程会在当前持有GIL的线程上设置中断标记。设置中断标记并不实际中断线程的执行。如果是这样的话，我们可以肯定**array << nil**不是一个原子性操作。
+
+### 控制中断标志
+
+深入名为**vm_eval.c**的文件，包含了控制Ruby方法调用的代码。它有负责创建方法调用的上下文，并调用正确的方法。在方法结束时调用[vm_call0_body](https://github.com/ruby/ruby/blob/trunk/vm_eval.c#L238)，正当它返回当前方法的返回值之前，这些中断会被检查。
+
+如果这个线程已经被设置了中断标志，则在返回其值前当场停止执行。在执行更多Ruby代码之前，当前线程会释放GIL并调用**sched_yield**。**sched_yield**是一个系统方法提示线程调度器安排另一个线程。一旦完成这个工作，该中断线程尝试重新获取GIL，现在不得不等待另一个线程释放GIL了。
+
+嘿，这就是我们问题的答案。**array << nil**是原子性的。多亏了GIL，所有用C实现的Ruby方法都是原子性的。
+
+所以这个例子:
+
+```ruby
+array = []
+
+5.times.map do
+  Thread.new do
+    1000.times do
+      array << nil
+    end
+  end
+end.each(&:join)
+
+puts array.size
+```
+
+运行在MRI上每次都保证产生预期的结果。
+
+**但请记住，这个保证并不针对Ruby写成的那些代码。**如果你把这段代码放到没有GIL的其他实现里，它将会产生叵测的结果。很有必要了解一个GIL保证，但依赖它来写代码就不是个好主意了。在此过程中，你基本就把自己和MRI捆绑在一块儿了。
+
+相似的，GIL不是公开的API。没有文档和规程说明。虽说Ruby代码是隐式依赖GIL的，但之前的MRI团队曾谈及想摆脱GIL或改变其语义。出于这些原因，你当然不希望，写出来的代码只能依赖于现下GIL的行为吧。
+
+### 非原生方法
+
+目前为止，我说到**array << nil**是原子性的。这很简单，因为**Array#<<**方法只带一个参数。这个表达式里只有一个方法调用，并且它是用C实现的。如果它在过程中被中断了，只会继续直到完成，之后释放GIL。
+
+那类似这样的呢？
+
+```ruby
+array << User.find(1)
+```
+
+在**Array#<<**方法执行前，它先要对右侧的表达式进行求值，然后才能把表达式的值作为参数。所以**User.find(1)**必须先被调用。如你所知，**User.find(1)**会调用一大堆其他Ruby代码。
+
+所以，在上面的例子中 **Array#<<** 依然是原子性的吗？是的，但是一旦右手边被求值。换句话说，没有原子性保证**User.find(1)**方法将被调用。之后返回值会传给 有原子性保证的**Array#<<**。
+
+更新: [ @headius ](https://twitter.com/headius)发了一个[极好的评论](http://www.jstorimer.com/blogs/workingwithcode/8100871-nobody-understands-the-gil-part-2-implementation#comment-930773796)，扩展了GIL提供的保证。如果你读到这个，考虑必读一下。
+
+### 这一切意味着什么？
+
+GIL使得方法调用原子性。这个对你意味着什么呢？
+
+在Part I中，我举例展示了在C函数中发生上下文切换时会发生什么。使用GIL，这种情况不会再发生了。相反，如果上下文切换发生了，其他线程会保持空闲以待GIL，给当前线程机会继续不中断。此行为只适用于MRI用C实现的Ruby方法。
+
+这种行为消除了竞争条件的源头，不然MRI的内部竞争会防不胜防。从这个角度，GIL是一个严格的MRI内部实现细节。它保持MRI的安全。
+
+但是还有一个挥之不去的问题尚无答案。GIL能提供给你的Ruby代码线程安全保证吗？
 
 
-
-
-
-
-[1] 译注： 参考 《编程本源》裘宗燕 译
-
-
+这是一个MRI使用中的重要问题，要是你熟悉其他环境的多线程编程,你可能已经知道了，答案是一个大写的**不行**。但是这篇文章已经足够长了，我将会在[Part III](http://www.rubyinside.com/does-the-gil-make-your-ruby-code-thread-safe-6051.html)更彻底地解决这个问题。
