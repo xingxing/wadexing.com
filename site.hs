@@ -23,6 +23,7 @@ main = hakyllWith config $ do
         route $ setExtension "html"
         compile $ pandocCompiler
             >>= loadAndApplyTemplate "templates/post.html"    postCtx
+            >>= saveSnapshot "content"
             >>= loadAndApplyTemplate "templates/default.html" postCtx
             >>= relativizeUrls
 
@@ -58,6 +59,14 @@ main = hakyllWith config $ do
     match "templates/*" $ compile templateCompiler
 
 
+    create ["feed.xml"] $ do
+      route idRoute
+      compile $ do
+        let feedCtx = postCtx `mappend` bodyField "description"
+        posts <- fmap (take 10) . recentFirst =<<
+          loadAllSnapshots "posts/*" "content"
+        renderAtom myFeedConfiguration feedCtx posts
+
 --------------------------------------------------------------------------------
 
 postCtx :: Context String
@@ -80,4 +89,14 @@ config = defaultConfiguration
     { deployCommand = "rsync --checksum -ave 'ssh -p 65022' \
                       \_site/* \
                       \xing@wadexing.com:/home/xing/blog"
+    }
+
+--------------------------------------------------------------------------------
+myFeedConfiguration :: FeedConfiguration
+myFeedConfiguration = FeedConfiguration
+    { feedTitle       = "Wade Xing's blog"
+    , feedDescription = "This feed provides nothing!"
+    , feedAuthorName  = "Wade Xing"
+    , feedAuthorEmail = "iamxingxing@gmail.com"
+    , feedRoot        = "http://www.wadexing.com"
     }
