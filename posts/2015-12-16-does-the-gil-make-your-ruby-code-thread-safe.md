@@ -1,4 +1,6 @@
-## Part III GIL能让你的Ruby代码线程安全吗？
+------
+title: Part III GIL能让你的Ruby代码线程安全吗？
+------
 
 围绕着MRI的GIL，ruby社区中有一些错误观念。要是你今天只想从这篇文章获取一个观点，那就是：GIL不会使你的Ruby代码线程安全。
 
