@@ -76,7 +76,7 @@ postCtx =
 
 siteCtx :: Context String
 siteCtx = 
-    constField "baseurl" "http://www.wadexing.com" `mappend` 
+    constField "baseurl" "https://www.wadexing.com" `mappend`
     constField "site_description" "安识紫霞客，瑶台鸣素琴" `mappend`
     constField "twitter_username" "wadexing" `mappend`
     constField "github_username" "xingxing" `mappend`
@@ -98,5 +98,5 @@ myFeedConfiguration = FeedConfiguration
     , feedDescription = "This feed provides nothing!"
     , feedAuthorName  = "Wade Xing"
     , feedAuthorEmail = "iamxingxing@gmail.com"
-    , feedRoot        = "http://www.wadexing.com"
+    , feedRoot        = "https://www.wadexing.com"
     }
